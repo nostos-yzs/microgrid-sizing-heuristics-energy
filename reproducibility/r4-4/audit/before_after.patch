@@ -1,0 +1,278 @@
+--- source_snapshot/ga_repair\sac_agent.py
++++ patched/ga_repair\sac_agent.py
+@@ -91,6 +91,8 @@
+         self.tau = params["tau"]
+         self.alpha = params["alpha"]
+         self.batch_size = params["batch_size"]
++        self.corrected_policy = bool(params.get("corrected_policy", False))
++        self.learn_updates = 0
+ 
+     def choose_action(self, state):
+         state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
+@@ -102,6 +104,7 @@
+         
+         # 将-1到1的动作映射到实际的gamma参数范围
+         scaled_action = action * self.action_scale + self.action_bias
++        self.last_action = {"z": z.detach().cpu().numpy().flatten(), "u": action.detach().cpu().numpy().flatten(), "mapped": scaled_action.detach().cpu().numpy().flatten()}
+         return scaled_action.cpu().detach().numpy().flatten()
+ 
+     def learn(self):
+@@ -121,7 +124,11 @@
+             next_std = torch.exp(next_log_std)
+             next_normal = torch.distributions.Normal(next_mean, next_std)
+             next_z = next_normal.sample()
+-            next_action_prob = next_normal.log_prob(next_z).sum(1, keepdim=True)
++            next_u = torch.tanh(next_z)
++            next_logp = next_normal.log_prob(next_z)
++            if self.corrected_policy:
++                next_logp = next_logp - torch.log(1 - next_u.pow(2) + 1e-6) - torch.log(self.action_scale)
++            next_action_prob = next_logp.sum(1, keepdim=True)
+             
+             # Scale and shift the action
+             next_action = torch.tanh(next_z) * self.action_scale + self.action_bias
+@@ -140,8 +147,12 @@
+         mean, log_std = self.actor(state)
+         std = torch.exp(log_std)
+         normal = torch.distributions.Normal(mean, std)
+-        z = normal.sample()
+-        action_prob = normal.log_prob(z).sum(1, keepdim=True)
++        z = normal.rsample() if self.corrected_policy else normal.sample()
++        u = torch.tanh(z)
++        logp = normal.log_prob(z)
++        if self.corrected_policy:
++            logp = logp - torch.log(1 - u.pow(2) + 1e-6) - torch.log(self.action_scale)
++        action_prob = logp.sum(1, keepdim=True)
+         
+         scaled_action = torch.tanh(z) * self.action_scale + self.action_bias
+         q1_pi, q2_pi = self.critic(state, scaled_action)
+@@ -153,5 +164,6 @@
+         actor_loss.backward()
+         self.actor_optimizer.step()
+ 
++        self.learn_updates += 1
+         for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
+             target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)--- source_snapshot/pso_repair\pso_core_sac.py
++++ patched/pso_repair\pso_core_sac.py
+@@ -150,3 +150,20 @@
+         "population_diversity": np.std(particles, axis=0).mean(),
+     }
+     return updated_swarm_state, iteration_results
++
++
++def evaluate_moved_swarm(state, env):
++    """Evaluate x_(t+1) before computing reward for action a_t. No second motion."""
++    representative = None
++    for i, x in enumerate(state["particles"]):
++        f, d = env.evaluate_solution(x.copy())
++        if representative is None or f < representative[0]:
++            representative = (float(f), d)
++        if f < state["pbest_fitness"][i]:
++            state["pbest_fitness"][i] = f
++            state["pbest_positions"][i] = x.copy()
++        if f < state["gbest_fitness"]:
++            state["gbest_fitness"] = float(f)
++            state["gbest_position"] = x.copy()
++            state["gbest_diagnostics"] = d
++    return representative
+--- source_snapshot/pso_repair\sac_agent.py
++++ patched/pso_repair\sac_agent.py
+@@ -91,6 +91,8 @@
+         self.tau = params["tau"]
+         self.alpha = params["alpha"]
+         self.batch_size = params["batch_size"]
++        self.corrected_policy = bool(params.get("corrected_policy", False))
++        self.learn_updates = 0
+ 
+     def choose_action(self, state):
+         state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
+@@ -102,6 +104,7 @@
+         
+         # 将-1到1的动作映射到实际的gamma参数范围
+         scaled_action = action * self.action_scale + self.action_bias
++        self.last_action = {"z": z.detach().cpu().numpy().flatten(), "u": action.detach().cpu().numpy().flatten(), "mapped": scaled_action.detach().cpu().numpy().flatten()}
+         return scaled_action.cpu().detach().numpy().flatten()
+ 
+     def learn(self):
+@@ -121,7 +124,11 @@
+             next_std = torch.exp(next_log_std)
+             next_normal = torch.distributions.Normal(next_mean, next_std)
+             next_z = next_normal.sample()
+-            next_action_prob = next_normal.log_prob(next_z).sum(1, keepdim=True)
++            next_u = torch.tanh(next_z)
++            next_logp = next_normal.log_prob(next_z)
++            if self.corrected_policy:
++                next_logp = next_logp - torch.log(1 - next_u.pow(2) + 1e-6) - torch.log(self.action_scale)
++            next_action_prob = next_logp.sum(1, keepdim=True)
+             
+             # Scale and shift the action
+             next_action = torch.tanh(next_z) * self.action_scale + self.action_bias
+@@ -140,8 +147,12 @@
+         mean, log_std = self.actor(state)
+         std = torch.exp(log_std)
+         normal = torch.distributions.Normal(mean, std)
+-        z = normal.sample()
+-        action_prob = normal.log_prob(z).sum(1, keepdim=True)
++        z = normal.rsample() if self.corrected_policy else normal.sample()
++        u = torch.tanh(z)
++        logp = normal.log_prob(z)
++        if self.corrected_policy:
++            logp = logp - torch.log(1 - u.pow(2) + 1e-6) - torch.log(self.action_scale)
++        action_prob = logp.sum(1, keepdim=True)
+         
+         scaled_action = torch.tanh(z) * self.action_scale + self.action_bias
+         q1_pi, q2_pi = self.critic(state, scaled_action)
+@@ -153,5 +164,6 @@
+         actor_loss.backward()
+         self.actor_optimizer.step()
+ 
++        self.learn_updates += 1
+         for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
+             target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)--- source_snapshot/sa_repair\main_sa_comparison_replaced_v3.py
++++ patched/sa_repair\main_sa_comparison_replaced_v3.py
+@@ -272,19 +272,14 @@
+     }
+ 
+ 
+-def _map_to_bounds(action01: np.ndarray, bounds: dict) -> np.ndarray:
+-    out = []
+-    keys = ["gamma_fb", "diag_prob"]
+-    for i, k in enumerate(keys):
+-        lo, hi = bounds[k]
+-        a = float(action01[i])
+-        if -1.2 <= a <= 1.2:
+-            a01 = np.clip(a, -1.0, 1.0)
+-            val = lo + (a01 + 1.0) * 0.5 * (hi - lo)
+-        else:
+-            val = np.clip(a, lo, hi)
+-        out.append(val)
+-    return np.array(out, dtype=float)
++def _map_to_bounds(physical_action: np.ndarray, bounds: dict) -> np.ndarray:
++    """Agent returns physical [k,p]; validate/clip ONLY, never affine-map again."""
++    a = np.asarray(physical_action, dtype=float)
++    lo = np.array([bounds[k][0] for k in ["gamma_fb", "diag_prob"]])
++    hi = np.array([bounds[k][1] for k in ["gamma_fb", "diag_prob"]])
++    if a.shape != (2,) or not np.isfinite(a).all():
++        raise ValueError("invalid physical action")
++    return np.clip(a, lo, hi)
+ 
+ 
+ def run_sa_rl_guided(config, env, total_iterations, run_seed):
+--- source_snapshot/sa_repair\sac_agent.py
++++ patched/sa_repair\sac_agent.py
+@@ -91,6 +91,8 @@
+         self.tau = params["tau"]
+         self.alpha = params["alpha"]
+         self.batch_size = params["batch_size"]
++        self.corrected_policy = bool(params.get("corrected_policy", False))
++        self.learn_updates = 0
+ 
+     def choose_action(self, state):
+         state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
+@@ -102,6 +104,7 @@
+         
+         # 将-1到1的动作映射到实际的gamma参数范围
+         scaled_action = action * self.action_scale + self.action_bias
++        self.last_action = {"z": z.detach().cpu().numpy().flatten(), "u": action.detach().cpu().numpy().flatten(), "mapped": scaled_action.detach().cpu().numpy().flatten()}
+         return scaled_action.cpu().detach().numpy().flatten()
+ 
+     def learn(self):
+@@ -121,7 +124,11 @@
+             next_std = torch.exp(next_log_std)
+             next_normal = torch.distributions.Normal(next_mean, next_std)
+             next_z = next_normal.sample()
+-            next_action_prob = next_normal.log_prob(next_z).sum(1, keepdim=True)
++            next_u = torch.tanh(next_z)
++            next_logp = next_normal.log_prob(next_z)
++            if self.corrected_policy:
++                next_logp = next_logp - torch.log(1 - next_u.pow(2) + 1e-6) - torch.log(self.action_scale)
++            next_action_prob = next_logp.sum(1, keepdim=True)
+             
+             # Scale and shift the action
+             next_action = torch.tanh(next_z) * self.action_scale + self.action_bias
+@@ -140,8 +147,12 @@
+         mean, log_std = self.actor(state)
+         std = torch.exp(log_std)
+         normal = torch.distributions.Normal(mean, std)
+-        z = normal.sample()
+-        action_prob = normal.log_prob(z).sum(1, keepdim=True)
++        z = normal.rsample() if self.corrected_policy else normal.sample()
++        u = torch.tanh(z)
++        logp = normal.log_prob(z)
++        if self.corrected_policy:
++            logp = logp - torch.log(1 - u.pow(2) + 1e-6) - torch.log(self.action_scale)
++        action_prob = logp.sum(1, keepdim=True)
+         
+         scaled_action = torch.tanh(z) * self.action_scale + self.action_bias
+         q1_pi, q2_pi = self.critic(state, scaled_action)
+@@ -153,5 +164,6 @@
+         actor_loss.backward()
+         self.actor_optimizer.step()
+ 
++        self.learn_updates += 1
+         for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
+             target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)--- source_snapshot/sa_repair\sa_core.py
++++ patched/sa_repair\sa_core.py
+@@ -194,6 +194,9 @@
+         return isinstance(v, (float, int)) and np.isfinite(v)
+ 
+     f_new, d_new = env.evaluate_solution(x_new)
++    state["proposal_f"] = float(f_new)
++    state["proposal_diag"] = d_new
++    state["proposal_x"] = x_new.copy()
+     if not _finite(f_new):
+         accept = False
+     else:
+--- source_snapshot/ts_repair\sac_agent.py
++++ patched/ts_repair\sac_agent.py
+@@ -91,6 +91,8 @@
+         self.tau = params["tau"]
+         self.alpha = params["alpha"]
+         self.batch_size = params["batch_size"]
++        self.corrected_policy = bool(params.get("corrected_policy", False))
++        self.learn_updates = 0
+ 
+     def choose_action(self, state):
+         state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
+@@ -102,6 +104,7 @@
+         
+         # 将-1到1的动作映射到实际的gamma参数范围
+         scaled_action = action * self.action_scale + self.action_bias
++        self.last_action = {"z": z.detach().cpu().numpy().flatten(), "u": action.detach().cpu().numpy().flatten(), "mapped": scaled_action.detach().cpu().numpy().flatten()}
+         return scaled_action.cpu().detach().numpy().flatten()
+ 
+     def learn(self):
+@@ -121,7 +124,11 @@
+             next_std = torch.exp(next_log_std)
+             next_normal = torch.distributions.Normal(next_mean, next_std)
+             next_z = next_normal.sample()
+-            next_action_prob = next_normal.log_prob(next_z).sum(1, keepdim=True)
++            next_u = torch.tanh(next_z)
++            next_logp = next_normal.log_prob(next_z)
++            if self.corrected_policy:
++                next_logp = next_logp - torch.log(1 - next_u.pow(2) + 1e-6) - torch.log(self.action_scale)
++            next_action_prob = next_logp.sum(1, keepdim=True)
+             
+             # Scale and shift the action
+             next_action = torch.tanh(next_z) * self.action_scale + self.action_bias
+@@ -140,8 +147,12 @@
+         mean, log_std = self.actor(state)
+         std = torch.exp(log_std)
+         normal = torch.distributions.Normal(mean, std)
+-        z = normal.sample()
+-        action_prob = normal.log_prob(z).sum(1, keepdim=True)
++        z = normal.rsample() if self.corrected_policy else normal.sample()
++        u = torch.tanh(z)
++        logp = normal.log_prob(z)
++        if self.corrected_policy:
++            logp = logp - torch.log(1 - u.pow(2) + 1e-6) - torch.log(self.action_scale)
++        action_prob = logp.sum(1, keepdim=True)
+         
+         scaled_action = torch.tanh(z) * self.action_scale + self.action_bias
+         q1_pi, q2_pi = self.critic(state, scaled_action)
+@@ -153,5 +164,6 @@
+         actor_loss.backward()
+         self.actor_optimizer.step()
+ 
++        self.learn_updates += 1
+         for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
+             target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)

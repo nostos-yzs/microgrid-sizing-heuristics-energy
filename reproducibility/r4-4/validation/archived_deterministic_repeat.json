@@ -1,0 +1,10 @@
+{
+  "algorithm": "PSO",
+  "arm": "revised",
+  "seed": 42,
+  "steps": 200,
+  "learning_updates": 73,
+  "csv_sha256_before": "239531f60793a22aa291d04d7f2ac240c2661b7598904f8f4f54366fff7fbee6",
+  "csv_sha256_repeat": "239531f60793a22aa291d04d7f2ac240c2661b7598904f8f4f54366fff7fbee6",
+  "identical": true
+}

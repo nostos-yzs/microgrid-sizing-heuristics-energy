@@ -1,0 +1,13 @@
+algorithm,variant,historical_lcoe,historical_nPV,historical_nWT,historical_nEC,historical_nFC,historical_ntank,historical_nbat,historical_time_to_target_s,historical_eval_to_target
+GA,sac,0.412423,167,2,1,1,1,557,88.67,96687
+GA,static,0.413291,169,1,1,1,1,561,34.01,37696
+GA,baseline,0.548994,458,0,49,30,1,0,28.89,30873
+PSO,sac,0.543686,401,1,53,29,1,0,8.96,16884
+PSO,static,0.544748,378,1,55,29,1,0,2.27,5126
+PSO,baseline,1.008540,349,0,60,71,2,655,3.64,3015
+SA,sac,0.804366,328,1,81,22,21,249,36.93,6527
+SA,static,0.561616,350,0,62,30,4,0,3.67,4118
+SA,baseline,2.167737,597,0,172,161,84,637,4.77,3832
+TS,sac,0.715078,179,0,0,0,161,628,2.12,2409
+TS,static,0.419238,168,1,0,0,0,572,0.20,339
+TS,baseline,0.644737,480,0,52,49,18,0,0.18,304

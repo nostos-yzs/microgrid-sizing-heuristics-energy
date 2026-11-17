@@ -1,0 +1,258 @@
+[
+  {
+    "algorithm": "GA",
+    "steps": 250,
+    "seeds": "42,43,44,45,46",
+    "action_order": [
+      "treat_prob",
+      "gamma_feedback"
+    ],
+    "action_bounds": {
+      "treat_prob": [
+        0.01,
+        0.21
+      ],
+      "gamma_feedback": [
+        1,
+        2
+      ]
+    },
+    "batch_size": 128,
+    "buffer_size": 20000,
+    "gamma": 0.99,
+    "tau": 0.005,
+    "alpha": 0.2,
+    "actor_lr": 3e-05,
+    "critic_lr": 3e-05,
+    "device": "cpu",
+    "core_settings": {
+      "population_size": 150,
+      "min_bounds": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "max_bounds": [
+        1000,
+        1000,
+        200,
+        200,
+        1000,
+        1000
+      ],
+      "classic_params": {
+        "simple": {
+          "crossover_rate": 0.9,
+          "mutation_rate": 0.4,
+          "mutation_strength": 0.1
+        },
+        "guided": {
+          "crossover_rate": 0.9,
+          "mutation_rate": 0.4,
+          "random_mutation_strength": 0.1,
+          "parent_treat_prob": 0.1,
+          "parent_treat_strength": 1.5
+        }
+      }
+    },
+    "representative_weights": [
+      50,
+      60,
+      70,
+      85,
+      100
+    ],
+    "stochasticity": {
+      "enabled": false,
+      "mc_samples": 1,
+      "load_std_dev_percent": 0.05,
+      "ghi_std_dev_percent": 0.1,
+      "wind_std_dev_percent": 0.15
+    }
+  },
+  {
+    "algorithm": "PSO",
+    "steps": 200,
+    "seeds": "42,43,44,45,46",
+    "action_order": [
+      "treat_prob",
+      "gamma_feedback"
+    ],
+    "action_bounds": {
+      "treat_prob": [
+        0.1,
+        0.3
+      ],
+      "gamma_feedback": [
+        8.5,
+        10.5
+      ]
+    },
+    "batch_size": 128,
+    "buffer_size": 20000,
+    "gamma": 0.99,
+    "tau": 0.005,
+    "alpha": 0.2,
+    "actor_lr": 0.0003,
+    "critic_lr": 0.0003,
+    "device": "cpu",
+    "core_settings": {
+      "population_size": 150,
+      "min_bounds": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "max_bounds": [
+        1000,
+        1000,
+        200,
+        200,
+        1000,
+        1000
+      ],
+      "w": 0.6,
+      "c1": 1.5,
+      "c2": 1.5
+    },
+    "representative_weights": [
+      50,
+      60,
+      70,
+      85,
+      100
+    ],
+    "stochasticity": {
+      "enabled": false,
+      "mc_samples": 1,
+      "load_std_dev_percent": 0.05,
+      "ghi_std_dev_percent": 0.1,
+      "wind_std_dev_percent": 0.15
+    }
+  },
+  {
+    "algorithm": "SA",
+    "steps": 3600,
+    "seeds": "42,43,44,45,46",
+    "action_order": [
+      "gamma_fb",
+      "diag_prob"
+    ],
+    "action_bounds": {
+      "gamma_fb": [
+        1.8,
+        3.8
+      ],
+      "diag_prob": [
+        0.26,
+        0.46
+      ]
+    },
+    "batch_size": 128,
+    "buffer_size": 20000,
+    "gamma": 0.99,
+    "tau": 0.005,
+    "alpha": 0.2,
+    "actor_lr": 3e-05,
+    "critic_lr": 3e-05,
+    "device": "cpu",
+    "core_settings": {
+      "schedule": {
+        "T0": 100.0,
+        "alpha": 0.998,
+        "Tmin": 0.001
+      },
+      "n_layers": 60,
+      "inner_loops": 60,
+      "total_iters": 3600
+    },
+    "representative_weights": [
+      50,
+      60,
+      70,
+      85,
+      100
+    ],
+    "stochasticity": {
+      "enabled": false,
+      "mc_samples": 8,
+      "load_std_dev_percent": 0.05,
+      "ghi_std_dev_percent": 0.1,
+      "wind_std_dev_percent": 0.15
+    }
+  },
+  {
+    "algorithm": "TS",
+    "steps": 200,
+    "seeds": "42,43,44,45,46",
+    "action_order": [
+      "diag_prob",
+      "gamma_feedback"
+    ],
+    "action_bounds": {
+      "diag_prob": [
+        0.65,
+        0.85
+      ],
+      "gamma_feedback": [
+        68.5,
+        72.5
+      ]
+    },
+    "batch_size": 128,
+    "buffer_size": 20000,
+    "gamma": 0.99,
+    "tau": 0.005,
+    "alpha": 0.2,
+    "actor_lr": 3e-05,
+    "critic_lr": 3e-05,
+    "device": "cpu",
+    "core_settings": {
+      "min_bounds": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "max_bounds": [
+        1000,
+        1000,
+        200,
+        200,
+        1000,
+        1000
+      ],
+      "neighbors": 16,
+      "tabu_len": 32,
+      "sigma_random": 0.15,
+      "grid_ratio": 0.01,
+      "tau_ratio": 0.005,
+      "guided": {
+        "diag_prob": 0.75,
+        "gamma_feedback": 70.5
+      }
+    },
+    "representative_weights": [
+      50,
+      60,
+      70,
+      85,
+      100
+    ],
+    "stochasticity": {
+      "enabled": false,
+      "mc_samples": 1,
+      "load_std_dev_percent": 0.05,
+      "ghi_std_dev_percent": 0.1,
+      "wind_std_dev_percent": 0.15
+    }
+  }
+]

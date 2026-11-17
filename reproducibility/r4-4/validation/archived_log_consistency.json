@@ -1,0 +1,358 @@
+{
+  "runs": 50,
+  "logged_transitions": 61500,
+  "max_reward_sum_error": 0.0,
+  "max_corrected_action_error": 0.0,
+  "details": [
+    {
+      "file": "GA_legacy_42.csv",
+      "steps": 250,
+      "reward_sum_error": 0.0,
+      "learn_updates": 123,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "GA_legacy_43.csv",
+      "steps": 250,
+      "reward_sum_error": 0.0,
+      "learn_updates": 123,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "GA_legacy_44.csv",
+      "steps": 250,
+      "reward_sum_error": 0.0,
+      "learn_updates": 123,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "GA_legacy_45.csv",
+      "steps": 250,
+      "reward_sum_error": 0.0,
+      "learn_updates": 123,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "GA_legacy_46.csv",
+      "steps": 250,
+      "reward_sum_error": 0.0,
+      "learn_updates": 123,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "GA_revised_42.csv",
+      "steps": 250,
+      "reward_sum_error": 0.0,
+      "learn_updates": 123,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "GA_revised_43.csv",
+      "steps": 250,
+      "reward_sum_error": 0.0,
+      "learn_updates": 123,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "GA_revised_44.csv",
+      "steps": 250,
+      "reward_sum_error": 0.0,
+      "learn_updates": 123,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "GA_revised_45.csv",
+      "steps": 250,
+      "reward_sum_error": 0.0,
+      "learn_updates": 123,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "GA_revised_46.csv",
+      "steps": 250,
+      "reward_sum_error": 0.0,
+      "learn_updates": 123,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "PSO_legacy_42.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "PSO_legacy_43.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "PSO_legacy_44.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "PSO_legacy_45.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "PSO_legacy_46.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "PSO_revised_42.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "PSO_revised_43.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "PSO_revised_44.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "PSO_revised_45.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "PSO_revised_46.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "PSO_transition_only_42.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "PSO_transition_only_43.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "PSO_transition_only_44.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "PSO_transition_only_45.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "PSO_transition_only_46.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "SA_legacy_42.csv",
+      "steps": 3600,
+      "reward_sum_error": 0.0,
+      "learn_updates": 3473,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "SA_legacy_43.csv",
+      "steps": 3600,
+      "reward_sum_error": 0.0,
+      "learn_updates": 3473,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "SA_legacy_44.csv",
+      "steps": 3600,
+      "reward_sum_error": 0.0,
+      "learn_updates": 3473,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "SA_legacy_45.csv",
+      "steps": 3600,
+      "reward_sum_error": 0.0,
+      "learn_updates": 3473,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "SA_legacy_46.csv",
+      "steps": 3600,
+      "reward_sum_error": 0.0,
+      "learn_updates": 3473,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "SA_mapping_only_42.csv",
+      "steps": 3600,
+      "reward_sum_error": 0.0,
+      "learn_updates": 3473,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "SA_mapping_only_43.csv",
+      "steps": 3600,
+      "reward_sum_error": 0.0,
+      "learn_updates": 3473,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "SA_mapping_only_44.csv",
+      "steps": 3600,
+      "reward_sum_error": 0.0,
+      "learn_updates": 3473,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "SA_mapping_only_45.csv",
+      "steps": 3600,
+      "reward_sum_error": 0.0,
+      "learn_updates": 3473,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "SA_mapping_only_46.csv",
+      "steps": 3600,
+      "reward_sum_error": 0.0,
+      "learn_updates": 3473,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "SA_revised_42.csv",
+      "steps": 3600,
+      "reward_sum_error": 0.0,
+      "learn_updates": 3473,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "SA_revised_43.csv",
+      "steps": 3600,
+      "reward_sum_error": 0.0,
+      "learn_updates": 3473,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "SA_revised_44.csv",
+      "steps": 3600,
+      "reward_sum_error": 0.0,
+      "learn_updates": 3473,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "SA_revised_45.csv",
+      "steps": 3600,
+      "reward_sum_error": 0.0,
+      "learn_updates": 3473,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "SA_revised_46.csv",
+      "steps": 3600,
+      "reward_sum_error": 0.0,
+      "learn_updates": 3473,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "TS_legacy_42.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 99
+    },
+    {
+      "file": "TS_legacy_43.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 141
+    },
+    {
+      "file": "TS_legacy_44.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 112
+    },
+    {
+      "file": "TS_legacy_45.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 99
+    },
+    {
+      "file": "TS_legacy_46.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 115
+    },
+    {
+      "file": "TS_revised_42.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "TS_revised_43.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "TS_revised_44.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "TS_revised_45.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 0
+    },
+    {
+      "file": "TS_revised_46.csv",
+      "steps": 200,
+      "reward_sum_error": 0.0,
+      "learn_updates": 73,
+      "status_channel_mismatches": 0
+    }
+  ]
+}

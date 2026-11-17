@@ -1,0 +1,25 @@
+{
+  "evaluator": {
+    "cases": 1016,
+    "feasible_cases": 25,
+    "max_abs_objective_error": 2.3283064365386963e-10,
+    "max_abs_diagnostic_error": 2.842170943040401e-14,
+    "errors": []
+  },
+  "pso_hand": {
+    "dimensions": 12,
+    "max_abs_error": 0.0,
+    "velocity_used_once": true
+  },
+  "sa_hand": {
+    "cases": 24,
+    "max_abs_error": 1.4210854715202004e-14,
+    "strength_used_once": true
+  },
+  "reward_cases": 40,
+  "policy_pathwise": {
+    "legacy_sample_requires_grad": false,
+    "corrected_rsample_mean_grad": 1.0
+  },
+  "all_passed": true
+}

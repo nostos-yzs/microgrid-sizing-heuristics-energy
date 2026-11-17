@@ -1,0 +1,772 @@
+--- before/experiment_config.json
++++ after/experiment_config.json
+@@ -1,61 +1,61 @@
+-{
+-  "schema_version": 1,
+-  "algorithms": [
+-    "GA",
+-    "PSO",
+-    "SA",
+-    "TS"
+-  ],
+-  "variants": [
+-    "baseline",
+-    "static",
+-    "sac"
+-  ],
+-  "seeds": [
+-    0,
+-    2,
+-    4,
+-    6,
+-    8,
+-    10,
+-    12,
+-    14,
+-    16,
+-    18,
+-    20,
+-    22,
+-    24,
+-    26,
+-    28,
+-    30,
+-    32,
+-    34,
+-    36,
+-    38,
+-    40,
+-    42
+-  ],
+-  "budget": 37500,
+-  "tuning_seeds": [
+-    1001,
+-    1003
+-  ],
+-  "tuning_budget": 15000,
+-  "candidates": [
+-    "original",
+-    "alternative"
+-  ],
+-  "pilot_seeds": [
+-    2001,
+-    2003
+-  ],
+-  "pilot_budget": 37500,
+-  "target_relative_margin": 0.05,
+-  "sac_batch_size": 32,
+-  "device": "cpu",
+-  "torch_threads": 1,
+-  "confidence": 0.95,
+-  "checkpoint_every": 250,
+-  "statistics_seed": 9001,
+-  "schedule_seed": 9003
+-}+{
++  "schema_version": 2,
++  "algorithms": [
++    "GA",
++    "PSO",
++    "SA",
++    "TS"
++  ],
++  "variants": [
++    "baseline",
++    "static",
++    "sac"
++  ],
++  "seeds": [
++    0,
++    2,
++    4,
++    6,
++    8,
++    10,
++    12,
++    14,
++    16,
++    18,
++    20,
++    22,
++    24,
++    26,
++    28,
++    30,
++    32,
++    34,
++    36,
++    38,
++    40,
++    42
++  ],
++  "budget": 120000,
++  "tuning_seeds": [
++    1001,
++    1003
++  ],
++  "tuning_budget": 15000,
++  "candidates": [
++    "original",
++    "alternative"
++  ],
++  "pilot_seeds": [
++    2001,
++    2003
++  ],
++  "pilot_budget": 120000,
++  "target_relative_margin": 0.05,
++  "sac_batch_size": 32,
++  "device": "cpu",
++  "torch_threads": 1,
++  "confidence": 0.95,
++  "checkpoint_every": 250,
++  "statistics_seed": 9001,
++  "schedule_seed": 9003
++}
+--- before/run_all.py
++++ after/run_all.py
+@@ -85,31 +85,33 @@
+ 
+ def main():
+     ap=argparse.ArgumentParser(description=__doc__)
+-    ap.add_argument('--output',type=Path,default=BASE/'results')
++    ap.add_argument('--output',type=Path,default=BASE/'results_B120000')
+     ap.add_argument('--config',type=Path,default=BASE/'experiment_config.json')
+     ap.add_argument('--check',action='store_true',help='Check environment/snapshot only; no optimization')
+     ap.add_argument('--smoke',action='store_true',help='Tiny isolated validation campaign; never paper results')
+     ap.add_argument('--analyze-only',action='store_true')
++    ap.add_argument('--prepare-only',action='store_true',help='Complete tuning and independent pilot review, freeze target, then stop before formal seeds')
+     args=ap.parse_args();expected=preflight()
+     if args.check:
+         print('Preflight OK. Python:',sys.executable,'; frozen files:',len(expected));return
+     root=args.output.resolve()
+     if args.smoke:
+-        if root==BASE/'results': root=BASE/'validation'/'smoke_results'
++        if root==BASE/'results_B120000': root=BASE/'validation'/'smoke_B120000_v2'
+     root.mkdir(parents=True,exist_ok=True)
+     if args.analyze_only:
+         from analysis import analyze
+         analyze(root);return
+     protocol=json.loads(args.config.read_text(encoding='utf-8-sig'))
+     if args.smoke:
+-        protocol.update(seeds=[0,2],budget=1200,tuning_seeds=[1001],tuning_budget=600,
++        protocol.update(seeds=[0,42],budget=1200,tuning_seeds=[1001],tuning_budget=600,
+                         pilot_seeds=[2001],pilot_budget=1200,sac_batch_size=2,checkpoint_every=100,
+                         validation_only=True)
+     sets=[set(protocol[k]) for k in ['seeds','tuning_seeds','pilot_seeds']]
+     if any(a&b for a,b in itertools.combinations(sets,2)): raise ValueError('Training/pilot/test seeds overlap.')
+     if any(len(protocol[k])!=len(set(protocol[k])) for k in ['seeds','tuning_seeds','pilot_seeds']):raise ValueError('Duplicate seeds.')
+-    if protocol['budget']<1 or protocol['target_relative_margin']<0:raise ValueError('Invalid budget/target margin.')
+-    code_hashes={p.name:digest(p) for p in [BASE/'run_all.py',BASE/'worker.py',BASE/'analysis.py']}
++    if any(protocol[k]<1 for k in ['budget','pilot_budget','tuning_budget']) or protocol['target_relative_margin']<0:raise ValueError('Invalid budget/target margin.')
++    if protocol['pilot_budget'] != protocol['budget']:raise ValueError('Pilot and formal budgets must match before freezing the shared target.')
++    code_hashes={p.name:digest(p) for p in [BASE/name for name in ['run_all.py','worker.py','analysis.py','table3_reporting.py','budget_review.py','table3_reference.csv']]}
+     identity=dict(protocol=protocol,source_hashes=expected,runner_hashes=code_hashes)
+     campaign_hash=fingerprint(identity)
+     frozen=root/'preregistration.json'
+@@ -142,14 +144,22 @@
+         pilot=[]
+         for alg,var,_,seed in jobs(protocol,'pilot'):
+             pilot.append(execute(root,protocol,'pilot',alg,var,selection[alg+'_'+var],seed,protocol['pilot_budget']))
++        from budget_review import review_pilot
++        review_pilot(root,protocol,selection)
+         feasible=[r['lcoe'] for r in pilot if r['feasible']]
+         if not feasible:
+             raise RuntimeError('No feasible pilot solution. Do not use formal results to pick a target. Revise preregistered pilot budget in a NEW output folder.')
+         target=(1+protocol['target_relative_margin'])*min(feasible)
+         save_json(target_path,dict(frozen_utc=stamp(),target=target,best_pilot_feasible=min(feasible),
+                   relative_margin=protocol['target_relative_margin'],pilot_seeds=protocol['pilot_seeds']))
++    if not (root/'pilot_budget_review.json').exists():
++        from budget_review import review_pilot
++        review_pilot(root,protocol,selection)
+     target=json.loads(target_path.read_text(encoding='utf-8'))['target']
+     print(f'Frozen common target = {target:.10g}; formal runs = {len(jobs(protocol,"formal"))}',flush=True)
++    if args.prepare_only:
++        print('Preparation complete. Inspect pilot_budget_review.csv/json; rerun without --prepare-only to continue with the frozen protocol.',flush=True)
++        return
+     formal=[]
+     for alg,var,_,seed in jobs(protocol,'formal'):
+         formal.append(execute(root,protocol,'formal',alg,var,selection[alg+'_'+var],seed,protocol['budget'],target))
+@@ -169,4 +179,4 @@
+     except KeyboardInterrupt:
+         print('Interrupted. Completed runs are retained; rerun the same command to resume.',file=sys.stderr);sys.exit(130)
+     except Exception as exc:
+-        print('ERROR:',exc,file=sys.stderr);sys.exit(1)
++        print('ERROR:',exc,file=sys.stderr);sys.exit(1)
+--- before/analysis.py
++++ after/analysis.py
+@@ -6,6 +6,7 @@
+ import pandas as pd
+ from scipy import stats
+ from worker import save_json
++from table3_reporting import expand_equipment, design_tables, EQUIPMENT
+ 
+ ALGS=['GA','PSO','SA','TS']; VARS=['baseline','static','sac']
+ LABELS={'baseline':'Baseline','static':'Static repair','sac':'SAC repair'}
+@@ -56,6 +57,8 @@
+         for label,vals in [('lcoe',g.loc[g.feasible,'lcoe']),('formal_process_s',g.process_wall_s),
+                            ('search_s',g.search_wall_s),('sac_s',g.sac_total_s),
+                            ('capped_target_calls',g.target_observation_calls),
++                           ('hit_target_calls',g.loc[g.target_reached,'target_first_calls']),
++                           ('hit_target_search_s',g.loc[g.target_reached,'target_first_search_s']),
+                            ('amortized_total_s',g.amortized_total_s)]:
+             nn,m,sd,lo,hi=mean_ci(vals,confidence)
+             row.update({label+'_n':nn,label+'_mean':m,label+'_sd':sd,label+'_ci_low':lo,label+'_ci_high':hi})
+@@ -249,8 +252,8 @@
+                 table.tableStyleInfo=TableStyleInfo(name='TableStyleMedium2',showRowStripes=True);ws.add_table(table)
+         # Actual formulas make the basic consistency checks inspectable in Excel.
+         checks=wb['Checks'];raw=wb['Raw_runs'];headers={c.value:c.column_letter for c in raw[1]};last=raw.max_row
+-        checks.append(['raw_row_count_formula',f'=COUNTA(Raw_runs!A2:A{last})','Expected 264 in formal campaign'])
+-        checks.append(['total_EMS_calls_formula',f'=SUM(Raw_runs!{headers["ems_calls"]}2:{headers["ems_calls"]}{last})','Expected 9,900,000 for 264 x 37,500'])
++        checks.append(['raw_row_count_formula',f'=COUNTA(Raw_runs!A2:A{last})',f'Expected {len(frames["Raw_runs"])}'])
++        checks.append(['total_EMS_calls_formula',f'=SUM(Raw_runs!{headers["ems_calls"]}2:{headers["ems_calls"]}{last})',f'Expected {int(frames["Raw_runs"].budget.sum()):,}'])
+         checks.append(['budget_mismatch_formula',f'=SUMPRODUCT(--(Raw_runs!{headers["budget"]}2:{headers["budget"]}{last}<>Raw_runs!{headers["ems_calls"]}2:{headers["ems_calls"]}{last}))','Expected 0'])
+     return path
+ 
+@@ -266,20 +269,33 @@
+     raw=raw.merge(timing[['algorithm','variant','preparation_amortized_per_seed_s']],on=['algorithm','variant'],validate='many_to_one')
+     raw['amortized_total_s']=raw.process_wall_s+raw.preparation_amortized_per_seed_s
+     raw=raw.sort_values(['algorithm','variant','seed']).reset_index(drop=True)
++    raw=expand_equipment(raw)
++    design_frames=design_tables(raw)
++    representatives=design_frames['Representative_designs'].set_index(['algorithm','variant'])
+     summary=summaries(raw,confidence);pairs=comparisons(raw,confidence)
+     curves,_=convergence_table(root,raw,protocol['budget'],confidence)
+     fmt=lambda m,l,h: 'NA' if not np.isfinite(m) else f'{m:.6f} [{l:.6f}, {h:.6f}]'
+     table=[]
+     for _,r in summary.iterrows():
++        design=representatives.loc[(r.algorithm,r.variant)]
+         table.append({'Algorithm':r.algorithm,'Variant':LABELS[r.variant],
+          'LCOE mean [95% CI]':fmt(r.lcoe_mean,r.lcoe_ci_low,r.lcoe_ci_high),
++         'Representative design seed':design['seed'],
++         'Representative design LCOE':design['lcoe'],
++         **{key+' (representative)':design[key] for key in EQUIPMENT},
+          'Feasible / all':f'{r.n_feasible}/{r.n_runs}',
+          'Feasibility % [95% CI]':f'{100*r.feasibility_rate:.1f} [{100*r.feasibility_ci_low:.1f}, {100*r.feasibility_ci_high:.1f}]',
+          'Target hits / all':f'{r.n_target_hits}/{r.n_runs}',
++         'Eval-to-target among hits mean [95% CI]':fmt(r.hit_target_calls_mean,r.hit_target_calls_ci_low,r.hit_target_calls_ci_high),
++         'Time-to-target search s among hits mean [95% CI]':fmt(r.hit_target_search_s_mean,r.hit_target_search_s_ci_low,r.hit_target_search_s_ci_high),
+          'Restricted target calls mean [95% CI]':fmt(r.capped_target_calls_mean,r.capped_target_calls_ci_low,r.capped_target_calls_ci_high),
+          'Formal wall s mean [95% CI]':fmt(r.formal_process_s_mean,r.formal_process_s_ci_low,r.formal_process_s_ci_high),
+          'With amortized preparation s [95% CI]':fmt(r.amortized_total_s_mean,r.amortized_total_s_ci_low,r.amortized_total_s_ci_high)})
+     notes=[('Experiment',json.dumps(protocol)),
++     ('Design columns','Six integer equipment counts of an actual lower-median feasible LCOE run, ties by seed. Its seed and LCOE are shown separately from the across-seed mean. Infeasible designs stay blank.'),
++     ('Historical Table 3','Printed values transcribed from original manuscript PDF page 21. Seed42_vs_original is descriptive only; it is not proof of historical reproduction. Historical target/time definitions differ.'),
++     ('Target time among hits','Actual elapsed search wall seconds at first target evaluation, including online SAC work; conditional on hitting the target. Read with target hit rate and censored calls; never replace non-hits with zero.'),
++     ('Budget review','Independent pilot diagnostics are in Pilot_budget_review. Exact budgets and nonzero SAC updates are execution checks; late improvements do not certify convergence.'),
+      ('Sample unit','One independent seed. Same algorithm/seed shares initialization across its three variants.'),
+      ('LCOE endpoint','Best feasible design evaluated anywhere within B EMS calls; includes repair candidates. Success status AND finite objective < 1e6.'),
+      ('LCOE uncertainty','Two-sided Student-t confidence interval of the conditional mean among feasible runs; not standard deviation.'),
+@@ -301,9 +317,11 @@
+        ('paired_initialization_mismatches',int((raw.groupby(['algorithm','seed']).initialization_sha256.nunique()!=1).sum()),0),
+        ('target_nonhit_values_present',int(raw.loc[~raw.target_reached,'target_first_calls'].notna().sum()),0),
+        ('sac_runs_without_updates',int(((raw.variant=='sac')&(raw.sac_updates==0)).sum()),0)],columns=['check','observed','expected'])
+-    frames={'Table3':pd.DataFrame(table),'Raw_runs':raw,'Statistics':summary,'Paired_tests':pairs,'Timing':timing,
++    frames={'Table3':pd.DataFrame(table),**design_frames,'Raw_runs':raw,'Statistics':summary,'Paired_tests':pairs,'Timing':timing,
+             'Tuning_pilot':allruns[allruns.stage!='formal'],'Convergence':curves,'Attempts':attempts,
+             'Protocol':pd.DataFrame(notes,columns=['item','definition']),'Checks':checks}
++    review_path=root/'pilot_budget_review.csv'
++    if review_path.exists():frames['Pilot_budget_review']=pd.read_csv(review_path)
+     for name,df in frames.items():df.to_csv(root/(name+'.csv'),index=False,encoding='utf-8-sig')
+     figures(root,raw,summary,pairs,timing,curves,confidence);workbook(root,frames)
+     save_json(root/'analysis_checks.json',dict(n_formal=len(raw),expected=expected,n_pairs=len(pairs),
+@@ -316,4 +334,4 @@
+        'Fig. 3 | Empirical cumulative target attainment. All seeds in denominator; non-hits administratively censored at the common budget.',
+        'Fig. 4 | Mean complete measured computing cost. SAC subcomponents are included once. Preparation is amortized across formal seeds; failed/retried attempts are separately reported in Timing.',
+        'Fig. 5 | Within-algorithm paired LCOE differences. Jointly feasible seed pairs only; unadjusted 95% mean-difference CIs. Holm-adjusted signed-rank p values are in Paired_tests.']),encoding='utf-8')
+-    print('Exported workbook, CSV source data, and 5 PDF/SVG/PNG figure sets.',flush=True)
++    print('Exported workbook, CSV source data, and 5 PDF/SVG/PNG figure sets.',flush=True)
+--- before/README_运行说明.md
++++ after/README_运行说明.md
+@@ -1,137 +1,161 @@
+-﻿# R4.5：独立种子、共同 EMS 预算与完整计算成本
+-
+-## 直接运行
+-
+-在 Windows 的 **CMD** 中粘贴以下一行即可。路径中的空格和中文由双引号处理，无需先切换工作目录：
+-
+-```cmd
+-"D:\Micro-Grid\小论文2\返修\返修代码文件\R4\4-5\run_all.cmd"
+-```
+-
+-程序会自动完成预调参、独立预跑、目标冻结、264 次正式运行、统计、Excel 和图片导出。默认结果目录为本文件夹下的 `results`。本次交付不包含正式实验结论；`validation` 中的输出仅用于代码检查，不能用于论文。
+-
+-默认使用本机 `E:\python\python.exe`；不存在时使用 PATH 中的 `python`。需要其他解释器时，先在 CMD 中执行 `set "R45_PYTHON=你的python.exe完整路径"`。依赖列在 `requirements.txt`；本机已具有所需库，程序不会自动安装或修改环境。
+-
+-运行前关闭不必要的占用 CPU 的程序，整个实验尽量保持同一机器、同一电源/线程设置。默认 CPU、Torch 单线程、顺序执行，避免并行任务竞争污染耗时比较。不要同时启动两份相同输出目录的实验。
+-
+-## 正式方案：首次运行前固定
+-
+-配置文件：`experiment_config.json`。不是把旧 Table 3 的单次值加工成区间，而是进行新的独立重复比较。
+-
+-| 阶段 | 方法数 | 候选数 | 种子 | 每次 EMS 预算 | 运行次数 |
+-|---|---:|---:|---|---:|---:|
+-| 预调参 | 4×3 | 2 | 1001、1003 | 15,000 | 48 |
+-| 独立预跑、确定共同目标 | 4×3 | 已选定的 1 个 | 2001、2003 | 37,500 | 24 |
+-| 正式比较 | 4×3 | 已选定的 1 个 | 0、2、4、…、42 | 37,500 | 264 |
+-
+-合计 **336 次运行**，无重试时合计 **11,520,000 次 EMS 调用**。其中正式比较为 9,900,000 次调用。具体耗时取决于 EMS 和 SAC 更新，程序不预设哪种算法获胜。
+-
+-三种变体分别为 baseline（传统算法）、static（固定参数修复）、sac（SAC 自适应修复）。各方法的预调参选择准则依次为：可行次数最多；可行结果平均 LCOE 最低；仍相同时选择 original。所有方法都比较两个候选，避免只为 SAC 支付而不报告调参成本。
+-
+-两候选的定义见 `worker.py::configuration`：original 使用冻结入口的原配置；alternative 对 baseline 分别将 GA 变异强度、PSO 惯性系数、SA 初温、TS 随机扰动尺度乘 0.8，对 static 将修复强度乘 0.8，对 sac 将 actor/critic 学习率乘 0.5。其他参数固定。这里是有限的预先指定参数比较，不能声称完成了全面的超参数最优化。
+-
+-共同目标为 **L_target = 1.05 × 独立预跑中全部 12 种方法的最佳可行 LCOE**。5% 容差在正式数据产生前指定，目标保存至 `target_frozen.json`。没有任何预跑获得可行解时停止，不利用正式结果倒推目标。目标之后不随正式结果改变。
+-
+-首次运行会写入 `preregistration.json`，保存预算、种子、目标设定规则及源代码 SHA256。这是本地、有时间戳的方案冻结记录，不等同于第三方公开预注册。任何预算/候选/种子/代码改动均须使用新的输出目录，不能把不同方案的结果混用。
+-
+-## 公平预算和重复性的具体定义
+-
+-- 在 `evaluate_solution` 入口执行硬预算。每次调用（包括重复评价、诊断和修复评价）都计数，不缓存以抵扣次数，不允许第 B+1 次 EMS 调用。循环迭代数仅是上界，不是比较预算。
+-- 正式终点是预算内**已经评价过的最佳可行设计**。若预算在一轮中间耗尽，已评价的可行候选仍被保留；该指标不要求最后一轮完整结束。三种变体采用同一规则。
+-- 可行定义与原工程一致：诊断 `status == success`，LCOE 有限且小于原罚值阈值 1e6。未可行的 LCOE 留空，其运行仍计入可行率分母。
+-- 同一算法、同一 seed 的三变体共享初始种群/初始状态，以 SHA256 自动验证；不同算法的初始化结构不同，不能声称四种算法共享完全相同种群。跨算法也按同一 seed 配对，但主要解释应优先关注同一算法内变体比较。
+-- 所有方法读取完全相同的五个原典型日 CSV，权重为 50、60、70、85、100（合计365天）；关闭原输入随机扰动。因而本方案的区间表示算法随机性，不是天气/负荷预测不确定性。
+-- Python、NumPy、Torch 及各入口内部种子均固定。SAC 每次从头初始化和训练，不使用其他种子训练出的预训练权重。完成的运行可跳过；未完成的单次运行从头重来，不能恢复到上一次迭代。
+-- 原输出专用日内轨迹与 GA 额外展示日志关闭，避免为了作图又进行不计预算的 EMS 仿真。原优化、诊断、动作和奖励逻辑保留。
+-
+-## 与原入口的差异必须在方法说明中交代
+-
+-`source_snapshot` 是本地 `pyprj_update_visualize\final_experiments` 四个算法目录的冻结副本，`source_manifest.json` 记录校验值。没有修改原工程。不能仅据此声称该副本就是历史投稿 Table 3 的唯一运行版本；本包产生的是新的 R4.5 结果。
+-
+-| 算法 | 冻结入口（在 source_snapshot 内） |
+-|---|---|
+-| GA | ga_repair/main_ga_comparison_patched.py |
+-| PSO | pso_repair/main_comparison.py |
+-| SA | sa_repair/main_sa_comparison_replaced_v3.py |
+-| TS | ts_repair/main_tabu_comparison_REPLACEMENT.py |
+-
+-统一预算适配位于 `worker.py`，而非改写冻结副本：
+-
+-1. 使用 EMS 调用数停止；SAC 状态的进度分量改为 `EMS_calls/B`。
+-2. SA 将原60个温度层的端点沿 EMS 预算展开，`T=max(Tmin,T0*alpha**(59*EMS_calls/B))`，单步循环防止原固定层数提前结束。这是明确的预算适配，不是原迭代轨迹的逐点复现。
+-3. SAC 的 batch size 统一为 **32**。原128在 GA 的37,500次调用预算下可能完全没有梯度更新，不能把这种运行称为训练。新的设置在正式期要求每个 SAC 运行实际完成更新，并导出更新数。小规模验证特意使用 batch size 2，不能混入正式数据。
+-4. 该包保留本地 SAC 动作和奖励实现，**包括 SA main 对动作再次映射的现状**；动作返回值和实际使用值均导出。这意味着本包没有完成另一项 R4.4 的算法修正，也不能宣称已经验证原论文动作定义完全一致。如需采用修改后的 R4.4 版本，应在正式运行前冻结新源码/校验清单，并启动新输出目录的整套实验，不能中途替换源码。
+-5. 最终 LCOE 沿用冻结 `MicrogridEnv` 的原经济计算；本包未把 R4.2 中重构的20年成本另行移植。若论文最终改用新的经济模型，比较实验也应先统一该模型再整体运行。
+-
+-每次运行的完整参数保存在 `effective_config.json`，库版本与设备信息保存在 `environment.json`。`sac_actions_rewards.csv` 保存 SAC 返回动作、实际动作、奖励与调用数。它服务于本次可追溯性，不等同于完整的 R4.4 奖励逐分量审计。
+-
+-## 运行结束后得到什么
+-
+-`results\R4_5_statistics.xlsx` 含以下工作表，同时导出同名 CSV：
+-
+-| 工作表 | 内容 |
+-|---|---|
+-| Table3 | 12行主表：可行 LCOE 均值及95%CI、可行率、目标达到次数、受限目标调用数、正式时间及摊销总时间 |
+-| Raw_runs | 264行正式原始结果：算法、变体、seed、预算、可行标志、LCOE、首次目标调用数、耗时、配置及路径等 |
+-| Statistics | 机器可读的均值、标准差、上下界及有效样本数 |
+-| Paired_tests | 全部66对方法×4项指标的同种子配对比较、差值CI、原始p和Holm校正p |
+-| Timing | 各方法调参、目标预跑、正式运行、SAC细分与包含失败重试的总成本 |
+-| Tuning_pilot | 预调参与独立预跑的原始结果 |
+-| Convergence | 共同调用数网格上的条件均值、区间、当时可行种子数 |
+-| Attempts | 每次成功/失败尝试的进程墙钟时间 |
+-| Protocol | 统计定义、计时范围、限制和方法说明 |
+-| Checks | 样本量、预算、配对初始化、未达目标编码和实际SAC更新检查 |
+-
+-`results\figures` 自动输出五组图，每组含 **PDF、SVG、300 dpi PNG**：
+-
+-1. 终点 LCOE 的逐种子散点、均值95%CI，以及可行率95%Wilson区间；
+-2. EMS调用次数—最佳可行LCOE收敛曲线及逐点95%CI；
+-3. 共同目标累计达到比例曲线；
+-4. 完整计算耗时分项图；
+-5. 同算法三变体的配对LCOE差值与95%CI。
+-
+-原始改进事件和日志位于 `results\runs\formal\方法_seed...\attempt_...`。图片源数据也都在 Excel/CSV 中。`FIGURE_CAPTIONS.txt` 提供英文图注草稿。
+-
+-## 区间、检验、删失的解释
+-
+-- LCOE 报告 **可行运行的均值 [95% CI下界, 上界]**，CI是均值的不确定性，不是“均值±标准差”。有效n单独列出；仅1个可行值时不捏造区间。
+-- 均值和同seed配对均值差的区间使用 Student-t。配对方向固定为 A−B；对 LCOE/耗时/目标调用数，负值表示A更小。LCOE仅比较两者均可行的seed，需同时解释可行率，避免条件筛选造成误导。
+-- 连续指标使用双侧 Wilcoxon 符号秩检验（正态近似、平均秩、零差值剔除；差值舍入12位防数值噪声，全零时p=1）。小样本/大量并列值/差值明显不对称时应谨慎解释。该检验与均值差CI针对的统计性质不同，二者不必给出完全一致的显著性结论。
+-- 可行率使用 Wilson 区间；配对可行性使用精确 McNemar 检验（不一致对上的二项检验）。各指标的66对检验分别做Holm多重比较校正，效果CI仍是未校正的95%区间。
+-- 未达到目标的首次调用数/首次时间留空，同时记录 `target_censored=True` 与观测上界B；绝不填0。`target_observation_calls`为min(T,B)，其均值是预算内受限的到达调用成本，不能称为不受限的平均达标时间。
+-- 曲线在尚无可行解时留空，按当时可行seed计算条件均值并导出分母。置信带是逐点CI，不是同时覆盖整条曲线的置信带。
+-- 可行率、均值差、校正p值和总成本一起支撑结论；程序不会自动写“显著优于所有基线”。
+-
+-## 完整耗时如何计入
+-
+-每次运行的 `process_wall_s` 从父进程启动子进程到退出，包含 Python启动/导入、环境初始化、agent初始化、优化搜索、在线训练、日志和单次导出。另记录 `search_wall_s` 和 EMS时间。
+-
+-SAC细分为 `sac_init_s`、`sac_action_s`、`sac_replay_s`、`sac_learn_s`，和为 `sac_total_s`。这些是已经包含在搜索/进程墙钟内的嵌套部分，**不能再与完整进程时间相加**。真正的梯度更新次数为 `sac_updates`；调用 `learn` 而buffer不足不算更新。
+-
+-每种方法的总成本 = 两候选全部调参进程 + 目标预跑进程 + 正式运行进程，包含已记录的失败/重试。主表“摊销总时间”将调参和预跑成本平均分配给22个正式seed；失败的正式重试额外在Timing列明，方法总体成本包含它们。该摊销CI把本次已经发生的准备成本视为固定值，并不估计“重新调参”的额外不确定性。
+-
+-程序末尾的 `last_session.json` 记录本次执行的整体墙钟与汇总导出耗时；跨会话的实际运行成本以Attempts/Timing为准。暂停等待人操作的时间不作为算法成本。历史人工试参若没有记录，标为**未知**，不能写成0；本包只能完整报告本次可复核实验产生的成本。
+-
+-## 检查、断点续跑与修改方案
+-
+-只检查依赖和源文件（不训练）：
+-
+-```cmd
+-"D:\Micro-Grid\小论文2\返修\返修代码文件\R4\4-5\run_all.cmd" --check
+-```
+-
+-中断后再次执行默认命令，自动跳过已完整保存的运行；当前未完成的运行从头重试。不要编辑已冻结的配置/源码来续跑。每次异常会给出具体 `console.log` 路径，程序不会跳过失败方法继续生成看似完整的论文统计。
+-
+-修改方案时，先编辑配置，随后指定新的输出目录，例如：
+-
+-```cmd
+-"D:\Micro-Grid\小论文2\返修\返修代码文件\R4\4-5\run_all.cmd" --output "D:\Micro-Grid\小论文2\返修\返修代码文件\R4\4-5\results_v2"
+-```
+-
+-正式运行已经完成，仅重新生成图表和Excel：
+-
+-```cmd
+-"D:\Micro-Grid\小论文2\返修\返修代码文件\R4\4-5\run_all.cmd" --analyze-only
+-```
+-
+-可选开发验证 `--smoke` 使用独立的 `validation\smoke_results`，B=1,200，正式验证seed仅0和2，调参B=600；其统计量仅验证输出流程。`test_protocol.py` 是无训练的预算/统计边界测试。完整的22seed正式实验仍需由你运行。
++﻿# R4.5：独立种子、共同 EMS 预算与完整计算成本
++
++## 直接运行
++
++在 Windows 的 **CMD** 中粘贴以下一行即可。路径中的空格和中文由双引号处理，无需先切换工作目录：
++
++```cmd
++"D:\Micro-Grid\小论文2\返修\返修代码文件\R4\4-5\run_all.cmd"
++```
++
++程序会自动完成预调参、独立预跑、目标冻结、264 次正式运行、统计、Excel 和图片导出。默认结果目录为本文件夹下的 `results_B120000`。本次交付不包含正式实验结论；`validation` 中的输出仅用于代码检查，不能用于论文。
++
++默认使用本机 `E:\python\python.exe`；不存在时使用 PATH 中的 `python`。需要其他解释器时，先在 CMD 中执行 `set "R45_PYTHON=你的python.exe完整路径"`。依赖列在 `requirements.txt`；本机已具有所需库，程序不会自动安装或修改环境。
++
++运行前关闭不必要的占用 CPU 的程序，整个实验尽量保持同一机器、同一电源/线程设置。默认 CPU、Torch 单线程、顺序执行，避免并行任务竞争污染耗时比较。不要同时启动两份相同输出目录的实验。
++
++## 正式方案：首次运行前固定
++
++配置文件：`experiment_config.json`。不是把旧 Table 3 的单次值加工成区间，而是进行新的独立重复比较。
++
++| 阶段 | 方法数 | 候选数 | 种子 | 每次 EMS 预算 | 运行次数 |
++|---|---:|---:|---|---:|---:|
++| 预调参 | 4×3 | 2 | 1001、1003 | 15,000 | 48 |
++| 独立预跑、确定共同目标 | 4×3 | 已选定的 1 个 | 2001、2003 | 120,000 | 24 |
++| 正式比较 | 4×3 | 已选定的 1 个 | 0、2、4、…、42 | 120,000 | 264 |
++
++合计 **336 次运行**，无重试时合计 **35,280,000 次 EMS 调用**。其中正式比较为 31,680,000 次调用。具体耗时取决于 EMS 和 SAC 更新，程序不预设哪种算法获胜。
++
++三种变体分别为 baseline（传统算法）、static（固定参数修复）、sac（SAC 自适应修复）。各方法的预调参选择准则依次为：可行次数最多；可行结果平均 LCOE 最低；仍相同时选择 original。所有方法都比较两个候选，避免只为 SAC 支付而不报告调参成本。
++
++两候选的定义见 `worker.py::configuration`：original 使用冻结入口的原配置；alternative 对 baseline 分别将 GA 变异强度、PSO 惯性系数、SA 初温、TS 随机扰动尺度乘 0.8，对 static 将修复强度乘 0.8，对 sac 将 actor/critic 学习率乘 0.5。其他参数固定。这里是有限的预先指定参数比较，不能声称完成了全面的超参数最优化。
++
++共同目标为 **L_target = 1.05 × 独立预跑中全部 12 种方法的最佳可行 LCOE**。5% 容差在正式数据产生前指定，目标保存至 `target_frozen.json`。没有任何预跑获得可行解时停止，不利用正式结果倒推目标。目标之后不随正式结果改变。
++
++首次运行会写入 `preregistration.json`，保存预算、种子、目标设定规则及源代码 SHA256。这是本地、有时间戳的方案冻结记录，不等同于第三方公开预注册。任何预算/候选/种子/代码改动均须使用新的输出目录，不能把不同方案的结果混用。
++
++## 公平预算和重复性的具体定义
++
++- 在 `evaluate_solution` 入口执行硬预算。每次调用（包括重复评价、诊断和修复评价）都计数，不缓存以抵扣次数，不允许第 B+1 次 EMS 调用。循环迭代数仅是上界，不是比较预算。
++- 正式终点是预算内**已经评价过的最佳可行设计**。若预算在一轮中间耗尽，已评价的可行候选仍被保留；该指标不要求最后一轮完整结束。三种变体采用同一规则。
++- 可行定义与原工程一致：诊断 `status == success`，LCOE 有限且小于原罚值阈值 1e6。未可行的 LCOE 留空，其运行仍计入可行率分母。
++- 同一算法、同一 seed 的三变体共享初始种群/初始状态，以 SHA256 自动验证；不同算法的初始化结构不同，不能声称四种算法共享完全相同种群。跨算法也按同一 seed 配对，但主要解释应优先关注同一算法内变体比较。
++- 所有方法读取完全相同的五个原典型日 CSV，权重为 50、60、70、85、100（合计365天）；关闭原输入随机扰动。因而本方案的区间表示算法随机性，不是天气/负荷预测不确定性。
++- Python、NumPy、Torch 及各入口内部种子均固定。SAC 每次从头初始化和训练，不使用其他种子训练出的预训练权重。完成的运行可跳过；未完成的单次运行从头重来，不能恢复到上一次迭代。
++- 原输出专用日内轨迹与 GA 额外展示日志关闭，避免为了作图又进行不计预算的 EMS 仿真。原优化、诊断、动作和奖励逻辑保留。
++
++## 与原入口的差异必须在方法说明中交代
++
++`source_snapshot` 是本地 `pyprj_update_visualize\final_experiments` 四个算法目录的冻结副本，`source_manifest.json` 记录校验值。没有修改原工程。不能仅据此声称该副本就是历史投稿 Table 3 的唯一运行版本；本包产生的是新的 R4.5 结果。
++
++| 算法 | 冻结入口（在 source_snapshot 内） |
++|---|---|
++| GA | ga_repair/main_ga_comparison_patched.py |
++| PSO | pso_repair/main_comparison.py |
++| SA | sa_repair/main_sa_comparison_replaced_v3.py |
++| TS | ts_repair/main_tabu_comparison_REPLACEMENT.py |
++
++统一预算适配位于 `worker.py`，而非改写冻结副本：
++
++1. 使用 EMS 调用数停止；SAC 状态的进度分量改为 `EMS_calls/B`。
++2. SA 将原60个温度层的端点沿 EMS 预算展开，`T=max(Tmin,T0*alpha**(59*EMS_calls/B))`，单步循环防止原固定层数提前结束。这是明确的预算适配，不是原迭代轨迹的逐点复现。
++3. SAC 的 batch size 统一为 **32**。上一版预算为37,500时，原 batch size 128 在 GA 上可能完全没有梯度更新；本次只提高预算，继续保留上一版统一的 batch size 32，避免同时改变训练参数。新的设置在正式期要求每个 SAC 运行实际完成更新，并导出更新数。小规模验证特意使用 batch size 2，不能混入正式数据。
++4. 该包保留本地 SAC 动作和奖励实现，**包括 SA main 对动作再次映射的现状**；动作返回值和实际使用值均导出。这意味着本包没有完成另一项 R4.4 的算法修正，也不能宣称已经验证原论文动作定义完全一致。如需采用修改后的 R4.4 版本，应在正式运行前冻结新源码/校验清单，并启动新输出目录的整套实验，不能中途替换源码。
++5. 最终 LCOE 沿用冻结 `MicrogridEnv` 的原经济计算；本包未把 R4.2 中重构的20年成本另行移植。若论文最终改用新的经济模型，比较实验也应先统一该模型再整体运行。
++
++每次运行的完整参数保存在 `effective_config.json`，库版本与设备信息保存在 `environment.json`。`sac_actions_rewards.csv` 保存 SAC 返回动作、实际动作、奖励与调用数。它服务于本次可追溯性，不等同于完整的 R4.4 奖励逐分量审计。
++
++## 运行结束后得到什么
++
++`results_B120000\R4_5_statistics.xlsx` 含以下工作表，同时导出同名 CSV：
++
++| 工作表 | 内容 |
++|---|---|
++| Table3 | 12行主表：LCOE均值及95%CI、代表设计的seed/LCOE/六类设备数、可行率、达标比例、达标者的首次调用数/时间及CI、受限调用数、正式和摊销时间 |
++| Seed42_vs_original | 12种方法seed42的新结果与原Table3逐项并列；历史值仅作描述性参考，不参加新实验统计 |
++| Designs_all_seeds | 264次正式运行的实际六类设备整数配置、LCOE、共同目标首次调用数/时间等 |
++| Representative_designs | 各方法可行LCOE排序后的下中位数运行，显示真实seed和配置；无可行解则留空 |
++| Historical_Table3 | 原论文第21页Table3全部12行、六类设备数和原时间/次数，含来源和版本说明 |
++| Pilot_budget_review | 独立预跑的预算、梯度更新次数、末20%预算内改进、最后改进调用数 |
++| Raw_runs | 264行正式原始结果：算法、变体、seed、预算、可行标志、LCOE、首次目标调用数、耗时、配置及路径等 |
++| Statistics | 机器可读的均值、标准差、上下界及有效样本数 |
++| Paired_tests | 全部66对方法×4项指标的同种子配对比较、差值CI、原始p和Holm校正p |
++| Timing | 各方法调参、目标预跑、正式运行、SAC细分与包含失败重试的总成本 |
++| Tuning_pilot | 预调参与独立预跑的原始结果 |
++| Convergence | 共同调用数网格上的条件均值、区间、当时可行种子数 |
++| Attempts | 每次成功/失败尝试的进程墙钟时间 |
++| Protocol | 统计定义、计时范围、限制和方法说明 |
++| Checks | 样本量、预算、配对初始化、未达目标编码和实际SAC更新检查 |
++
++`results_B120000\figures` 自动输出五组图，每组含 **PDF、SVG、300 dpi PNG**：
++
++1. 终点 LCOE 的逐种子散点、均值95%CI，以及可行率95%Wilson区间；
++2. EMS调用次数—最佳可行LCOE收敛曲线及逐点95%CI；
++3. 共同目标累计达到比例曲线；
++4. 完整计算耗时分项图；
++5. 同算法三变体的配对LCOE差值与95%CI。
++
++原始改进事件和日志位于 `results_B120000\runs\formal\方法_seed...\attempt_...`。图片源数据也都在 Excel/CSV 中。`FIGURE_CAPTIONS.txt` 提供英文图注草稿。
++
++## 区间、检验、删失的解释
++
++- LCOE 报告 **可行运行的均值 [95% CI下界, 上界]**，CI是均值的不确定性，不是“均值±标准差”。有效n单独列出；仅1个可行值时不捏造区间。
++- 均值和同seed配对均值差的区间使用 Student-t。配对方向固定为 A−B；对 LCOE/耗时/目标调用数，负值表示A更小。LCOE仅比较两者均可行的seed，需同时解释可行率，避免条件筛选造成误导。
++- 连续指标使用双侧 Wilcoxon 符号秩检验（正态近似、平均秩、零差值剔除；差值舍入12位防数值噪声，全零时p=1）。小样本/大量并列值/差值明显不对称时应谨慎解释。该检验与均值差CI针对的统计性质不同，二者不必给出完全一致的显著性结论。
++- 可行率使用 Wilson 区间；配对可行性使用精确 McNemar 检验（不一致对上的二项检验）。各指标的66对检验分别做Holm多重比较校正，效果CI仍是未校正的95%区间。
++- 未达到目标的首次调用数/首次时间留空，同时记录 `target_censored=True` 与观测上界B；绝不填0。`target_observation_calls`为min(T,B)，其均值是预算内受限的到达调用成本，不能称为不受限的平均达标时间。
++- 曲线在尚无可行解时留空，按当时可行seed计算条件均值并导出分母。置信带是逐点CI，不是同时覆盖整条曲线的置信带。
++- 可行率、均值差、校正p值和总成本一起支撑结论；程序不会自动写“显著优于所有基线”。
++
++## 完整耗时如何计入
++
++每次运行的 `process_wall_s` 从父进程启动子进程到退出，包含 Python启动/导入、环境初始化、agent初始化、优化搜索、在线训练、日志和单次导出。另记录 `search_wall_s` 和 EMS时间。
++
++SAC细分为 `sac_init_s`、`sac_action_s`、`sac_replay_s`、`sac_learn_s`，和为 `sac_total_s`。这些是已经包含在搜索/进程墙钟内的嵌套部分，**不能再与完整进程时间相加**。真正的梯度更新次数为 `sac_updates`；调用 `learn` 而buffer不足不算更新。
++
++每种方法的总成本 = 两候选全部调参进程 + 目标预跑进程 + 正式运行进程，包含已记录的失败/重试。主表“摊销总时间”将调参和预跑成本平均分配给22个正式seed；失败的正式重试额外在Timing列明，方法总体成本包含它们。该摊销CI把本次已经发生的准备成本视为固定值，并不估计“重新调参”的额外不确定性。
++
++程序末尾的 `last_session.json` 记录本次执行的整体墙钟与汇总导出耗时；跨会话的实际运行成本以Attempts/Timing为准。暂停等待人操作的时间不作为算法成本。历史人工试参若没有记录，标为**未知**，不能写成0；本包只能完整报告本次可复核实验产生的成本。
++
++## 检查、断点续跑与修改方案
++
++只检查依赖和源文件（不训练）：
++
++```cmd
++"D:\Micro-Grid\小论文2\返修\返修代码文件\R4\4-5\run_all.cmd" --check
++```
++
++中断后再次执行默认命令，自动跳过已完整保存的运行；当前未完成的运行从头重试。不要编辑已冻结的配置/源码来续跑。每次异常会给出具体 `console.log` 路径，程序不会跳过失败方法继续生成看似完整的论文统计。
++
++修改方案时，先编辑配置，随后指定新的输出目录，例如：
++
++```cmd
++"D:\Micro-Grid\小论文2\返修\返修代码文件\R4\4-5\run_all.cmd" --output "D:\Micro-Grid\小论文2\返修\返修代码文件\R4\4-5\results_v2"
++```
++
++正式运行已经完成，仅重新生成图表和Excel：
++
++```cmd
++"D:\Micro-Grid\小论文2\返修\返修代码文件\R4\4-5\run_all.cmd" --analyze-only
++```
++
++可选开发验证 `--smoke` 使用独立的 `validation\smoke_B120000_v2`，B=1,200，正式验证seed仅0和42，调参B=600；其统计量仅验证输出流程。`test_protocol.py` 和 `test_reporting.py` 是无训练的预算、统计、整数配置、缺失seed和预跑检查边界测试。完整的22seed正式实验仍需由你运行。
++
++
++## 本次120,000次预算修订与运行前检查
++
++本次仅将正式预算与独立预跑预算统一提升到120,000；调参预算仍为15,000，算法冻结副本、22个正式种子、两个调参候选以及SAC batch size 32均保留。120,000超过目前现有日志可核查的最大完整调用量112,500，但不保证复现旧Table3的数值，也不证明所有算法已经收敛。
++
++默认一个命令仍然跑完全部阶段。预跑结束后、正式种子开始前，会输出 `pilot_budget_review.csv` 和 `.json`：检查全部预跑用满预算、每个SAC预跑至少发生一次梯度更新，并记录最后20%预算中的改进。出现预算或未训练问题会停止。末段改进只作诊断，不根据正式结果自动提高预算；没有末段改进也不能当作收敛证明。
++
++如果希望先查看120,000次候选预算的预跑情况，可以运行：
++
++```cmd
++"D:\Micro-Grid\小论文2\返修\返修代码文件\R4\4-5\run_all.cmd" --prepare-only
++```
++
++查看 `results_B120000\pilot_budget_review.csv` 后，运行默认命令即可跳过已完成的调参和预跑，继续正式实验。若决定改变预算，需同步修改 `budget` 和 `pilot_budget`，并指定新的 `--output`，重做独立预跑和目标冻结；不能复用不同预算的已冻结目标。
++
++设备数量展示规则：主表的平均LCOE是多种子统计量；旁边六种设备数来自明确列出的一个真实代表运行，其LCOE和seed独立列出。不能把该配置解释为平均LCOE对应的唯一最优配置。完整逐种子配置见 `Designs_all_seeds`。`Seed42_vs_original` 中新的达标时间/次数基于预跑冻结的共同目标，旧值基于历史运行的不同定义，两者不能直接作速度改善结论。
++
++新输出默认进入 `results_B120000`，原有 `validation` 小样本记录保留；旧配置与脚本已备份到 `version_backups`。修改代码的SHA256也参与冻结，新版不能直接续跑旧版已冻结的输出目录。
+--- before/table3_reporting.py
++++ after/table3_reporting.py
+@@ -0,0 +1,63 @@
++"""Actual integer designs and a descriptive historical Table 3 comparison."""
++from pathlib import Path
++import json
++import numpy as np
++import pandas as pd
++
++EQUIPMENT = ['nPV', 'nWT', 'nEC', 'nFC', 'ntank', 'nbat']
++BASE = Path(__file__).resolve().parent
++
++
++def expand_equipment(raw):
++    raw = raw.copy()
++    rows = []
++    for _, r in raw.iterrows():
++        values = r.equipment_counts
++        if isinstance(values, str):
++            values = json.loads(values)
++        if not r.feasible:
++            rows.append([pd.NA] * 6)
++            continue
++        if not isinstance(values, (list, tuple, np.ndarray)) or len(values) != 6:
++            raise ValueError('A feasible result must have six equipment counts.')
++        if any(not np.isfinite(x) or x < 0 or int(x) != x for x in values):
++            raise ValueError('Equipment counts must be finite nonnegative integers.')
++        rows.append([int(x) for x in values])
++    for j, key in enumerate(EQUIPMENT):
++        raw[key] = pd.array([row[j] for row in rows], dtype='Int64')
++    return raw
++
++
++def design_tables(raw):
++    """No average configuration is presented as a realizable optimum."""
++    columns = ['algorithm', 'variant', 'seed', 'budget', 'feasible', 'lcoe'] + EQUIPMENT + [
++        'target', 'target_reached', 'target_first_calls', 'target_first_search_s',
++        'target_censored', 'ems_calls', 'process_wall_s', 'sac_total_s', 'sac_updates']
++    designs = raw[columns].copy()
++    representatives = []
++    for (alg, var), g in designs.groupby(['algorithm', 'variant'], sort=False):
++        feasible = g[g.feasible].sort_values(['lcoe', 'seed'])
++        if len(feasible):
++            # Choose an actual lower-median feasible run, not mean counts or a best-of-22 claim.
++            row = feasible.iloc[(len(feasible)-1)//2].to_dict()
++            row['selection_rule'] = 'Actual lower-median feasible LCOE run; ties by seed'
++        else:
++            row = {key: None for key in columns}
++            row.update(algorithm=alg, variant=var, feasible=False,
++                       selection_rule='No feasible run; no representative configuration')
++        row['feasible_run_count'] = len(feasible)
++        representatives.append(row)
++    reps = pd.DataFrame(representatives)
++    reference = pd.read_csv(BASE/'table3_reference.csv')
++    reference['reference_source'] = 'Original manuscript Table 3, PDF page 21; printed precision'
++    reference['reported_seed'] = 42
++    reference['provenance_note'] = 'Seed 42 reported by author; exact historical executable provenance not authenticated for all rows'
++    new42 = designs[designs.seed == 42].copy()
++    new42['new_seed42_present'] = True
++    comparison = reference.merge(new42, on=['algorithm', 'variant'], how='left', validate='one_to_one')
++    comparison['new_seed42_present'] = comparison['new_seed42_present'].eq(True)
++    comparison['lcoe_difference_new_minus_historical'] = comparison['lcoe'] - comparison['historical_lcoe']
++    comparison['comparison_scope'] = ('Descriptive only: new budget/tuning/batch/progress rules; '
++        'new common pilot target vs historical run-specific target; timing is not directly comparable')
++    return {'Seed42_vs_original': comparison, 'Designs_all_seeds': designs,
++            'Representative_designs': reps, 'Historical_Table3': reference}
+--- before/budget_review.py
++++ after/budget_review.py
+@@ -0,0 +1,46 @@
++"""Independent pilot diagnostics recorded before the formal seeds are evaluated."""
++import json
++from pathlib import Path
++import pandas as pd
++from worker import save_json
++
++
++def review_pilot(root, protocol, selection):
++    root = Path(root)
++    rows = []
++    for alg in protocol['algorithms']:
++        for variant in protocol['variants']:
++            candidate = selection[alg+'_'+variant]
++            for seed in protocol['pilot_seeds']:
++                job = root/'runs'/'pilot'/f'{alg}_{variant}_{candidate}_seed{seed}'
++                r = json.loads((job/'result.json').read_text(encoding='utf-8'))
++                if r['ems_calls'] != protocol['pilot_budget']:
++                    raise RuntimeError('Pilot failed to consume its exact EMS budget.')
++                if variant == 'sac' and r['sac_updates'] < 1:
++                    raise RuntimeError('A pilot SAC run made no gradient updates. Revise settings in a new output directory.')
++                improvements = pd.read_csv(root/r['artifact_dir']/'improvements.csv')
++                cut = .8*r['budget']
++                before = improvements[improvements.ems_calls <= cut]
++                late = improvements[improvements.ems_calls > cut]
++                at80 = float(before.best_feasible_lcoe.iloc[-1]) if len(before) else None
++                final = r['lcoe'] if r['feasible'] else None
++                gain = (at80-final)/abs(at80) if at80 not in (None, 0) and final is not None else None
++                rows.append(dict(algorithm=alg, variant=variant, candidate=candidate, seed=seed,
++                    budget=r['budget'], ems_calls=r['ems_calls'], feasible=r['feasible'], final_lcoe=final,
++                    lcoe_at_80_percent_budget=at80, relative_gain_in_last_20_percent=gain,
++                    improvement_events_in_last_20_percent=len(late),
++                    first_feasible_in_last_20_percent=bool(final is not None and at80 is None),
++                    last_improvement_call=int(improvements.ems_calls.iloc[-1]) if len(improvements) else None,
++                    sac_updates=r['sac_updates'], process_wall_s=r['process_wall_s']))
++    frame = pd.DataFrame(rows)
++    frame.to_csv(root/'pilot_budget_review.csv', index=False, encoding='utf-8-sig')
++    save_json(root/'pilot_budget_review.json', dict(
++        pilot_runs=len(rows), pilot_budget=protocol['pilot_budget'], formal_budget=protocol['budget'],
++        exact_pilot_budgets_passed=True, all_sac_pilots_have_gradient_updates=True,
++        minimum_pilot_sac_updates=int(frame.loc[frame.variant=='sac','sac_updates'].min()),
++        historical_observed_max_full_calls=112500,
++        formal_budget_covers_observed_historical_call_count=protocol['budget']>=112500,
++        pilot_runs_with_late_improvements=int((frame.improvement_events_in_last_20_percent>0).sum()),
++        validation_only=protocol.get('validation_only',False),
++        interpretation='Execution checks only, not convergence certification or a guarantee of historical Table 3 reproduction. Late gains are descriptive; no post-hoc budget adjustment from formal seeds.'))
++    return frame
+--- before/table3_reference.csv
++++ after/table3_reference.csv
+@@ -0,0 +1,13 @@
++algorithm,variant,historical_lcoe,historical_nPV,historical_nWT,historical_nEC,historical_nFC,historical_ntank,historical_nbat,historical_time_to_target_s,historical_eval_to_target
++GA,sac,0.412423,167,2,1,1,1,557,88.67,96687
++GA,static,0.413291,169,1,1,1,1,561,34.01,37696
++GA,baseline,0.548994,458,0,49,30,1,0,28.89,30873
++PSO,sac,0.543686,401,1,53,29,1,0,8.96,16884
++PSO,static,0.544748,378,1,55,29,1,0,2.27,5126
++PSO,baseline,1.008540,349,0,60,71,2,655,3.64,3015
++SA,sac,0.804366,328,1,81,22,21,249,36.93,6527
++SA,static,0.561616,350,0,62,30,4,0,3.67,4118
++SA,baseline,2.167737,597,0,172,161,84,637,4.77,3832
++TS,sac,0.715078,179,0,0,0,161,628,2.12,2409
++TS,static,0.419238,168,1,0,0,0,572,0.20,339
++TS,baseline,0.644737,480,0,52,49,18,0,0.18,304
+--- before/test_reporting.py
++++ after/test_reporting.py
+@@ -0,0 +1,60 @@
++"""Boundary tests for device reporting and independent-pilot checks."""
++import json
++from pathlib import Path
++import tempfile
++import unittest
++import pandas as pd
++from table3_reporting import expand_equipment, design_tables, EQUIPMENT
++from budget_review import review_pilot
++
++
++def row(seed, lcoe, feasible=True, variant='sac'):
++    return dict(algorithm='GA', variant=variant, seed=seed, budget=120000,
++        feasible=feasible, lcoe=lcoe, equipment_counts=[seed, 1, 2, 3, 4, 5] if feasible else None,
++        target=.5, target_reached=False, target_first_calls=None, target_first_search_s=None,
++        target_censored=True, ems_calls=120000, process_wall_s=2., sac_total_s=1., sac_updates=3)
++
++
++class ReportingTests(unittest.TestCase):
++    def test_representative_is_actual_median_run_and_no_feasible_stays_blank(self):
++        raw = expand_equipment(pd.DataFrame([row(0,3.), row(2,1.), row(42,2.),
++                                            row(42,None,False,'baseline')]))
++        frames = design_tables(raw)
++        reps = frames['Representative_designs'].set_index('variant')
++        self.assertEqual(reps.loc['sac','seed'],42)
++        self.assertEqual(reps.loc['sac','nPV'],42)
++        self.assertTrue(pd.isna(reps.loc['baseline','nPV']))
++        comparison = frames['Seed42_vs_original'].set_index(['algorithm','variant'])
++        self.assertEqual(comparison.loc[('GA','sac'),'lcoe'],2.)
++        self.assertAlmostEqual(comparison.loc[('GA','sac'),'historical_lcoe'],.412423)
++        self.assertFalse(comparison.loc[('PSO','sac'),'new_seed42_present'])
++        self.assertTrue(pd.isna(comparison.loc[('PSO','sac'),'lcoe']))
++
++    def test_missing_seed42_is_never_filled_with_another_seed(self):
++        frames = design_tables(expand_equipment(pd.DataFrame([row(0,1.)])))
++        self.assertFalse(frames['Seed42_vs_original'].new_seed42_present.any())
++        self.assertTrue(frames['Seed42_vs_original'].lcoe.isna().all())
++
++    def test_invalid_device_counts_are_not_silently_rounded(self):
++        r=row(42,1.);r['equipment_counts']=[1.5,1,2,3,4,5]
++        with self.assertRaises(ValueError):expand_equipment(pd.DataFrame([r]))
++
++    def test_late_first_feasibility_and_no_learning_guard(self):
++        with tempfile.TemporaryDirectory() as folder:
++            root=Path(folder);job=root/'runs'/'pilot'/'GA_sac_original_seed2001';job.mkdir(parents=True)
++            artifact=job/'attempt_001';artifact.mkdir()
++            result=dict(budget=120000,ems_calls=120000,feasible=True,lcoe=.4,sac_updates=1,
++                        process_wall_s=1.,artifact_dir=str(artifact.relative_to(root)))
++            (job/'result.json').write_text(json.dumps(result),encoding='utf-8')
++            (artifact/'improvements.csv').write_text('ems_calls,best_feasible_lcoe,elapsed_search_s\n110000,0.4,1.0\n',encoding='utf-8')
++            protocol=dict(algorithms=['GA'],variants=['sac'],pilot_seeds=[2001],pilot_budget=120000,budget=120000)
++            review=review_pilot(root,protocol,{'GA_sac':'original'})
++            self.assertTrue(review.first_feasible_in_last_20_percent.iloc[0])
++            self.assertIsNone(review.relative_gain_in_last_20_percent.iloc[0])
++            result['sac_updates']=0
++            (job/'result.json').write_text(json.dumps(result),encoding='utf-8')
++            with self.assertRaisesRegex(RuntimeError,'no gradient updates'):
++                review_pilot(root,protocol,{'GA_sac':'original'})
++
++
++if __name__=='__main__':unittest.main(verbosity=2)

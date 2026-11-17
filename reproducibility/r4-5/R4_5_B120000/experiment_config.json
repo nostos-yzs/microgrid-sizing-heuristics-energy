@@ -1,0 +1,61 @@
+{
+  "schema_version": 2,
+  "algorithms": [
+    "GA",
+    "PSO",
+    "SA",
+    "TS"
+  ],
+  "variants": [
+    "baseline",
+    "static",
+    "sac"
+  ],
+  "seeds": [
+    0,
+    2,
+    4,
+    6,
+    8,
+    10,
+    12,
+    14,
+    16,
+    18,
+    20,
+    22,
+    24,
+    26,
+    28,
+    30,
+    32,
+    34,
+    36,
+    38,
+    40,
+    42
+  ],
+  "budget": 120000,
+  "tuning_seeds": [
+    1001,
+    1003
+  ],
+  "tuning_budget": 15000,
+  "candidates": [
+    "original",
+    "alternative"
+  ],
+  "pilot_seeds": [
+    2001,
+    2003
+  ],
+  "pilot_budget": 120000,
+  "target_relative_margin": 0.05,
+  "sac_batch_size": 32,
+  "device": "cpu",
+  "torch_threads": 1,
+  "confidence": 0.95,
+  "checkpoint_every": 250,
+  "statistics_seed": 9001,
+  "schedule_seed": 9003
+}
